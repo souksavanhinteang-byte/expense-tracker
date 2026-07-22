@@ -93,6 +93,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     chartTransactionsResult,
     categoryExpenseResult,
     budgetsResult,
+    recurringResult,
   ] =
     await Promise.all([
       supabase
@@ -152,6 +153,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         .eq("month", selectedMonth)
         .eq("year", selectedYear)
         .order("currency"),
+
+      supabase
+        .from("recurring_transactions")
+        .select("id, name, next_due_date, amount, currency, is_active")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .order("next_due_date")
+        .limit(5),
     ]);
 
   if (profileResult.error) {
@@ -184,6 +193,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   if (budgetsResult.error) {
     throw new Error(budgetsResult.error.message);
+  }
+
+  if (recurringResult.error) {
+    throw new Error(recurringResult.error.message);
   }
 
   const profile = profileResult.data;
@@ -235,6 +248,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     }),
     categoryExpenseResult.data ?? [],
   );
+  const recurringItems = recurringResult.data ?? [];
+  const overdueRecurringCount = recurringItems.filter((item) => item.next_due_date <= new Date().toISOString().slice(0, 10)).length;
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
@@ -268,6 +283,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
             >
               ຈັດການງົບປະມານ
+            </Link>
+
+            <Link
+              href="/recurring"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+            >
+              ລາຍການປະຈຳ
             </Link>
 
             <Link
@@ -359,6 +381,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </Link>
           </div>
           <BudgetSummary budgets={budgetProgress} />
+        </section>
+
+        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">ລາຍການປະຈຳ</h2>
+              <p className={overdueRecurringCount ? "mt-1 text-sm font-semibold text-red-700" : "mt-1 text-sm text-slate-500"}>
+                ຄົບກຳນົດແລ້ວ {overdueRecurringCount} ລາຍການ
+              </p>
+            </div>
+            <Link href="/recurring" className="text-sm font-semibold text-emerald-700 underline">ລາຍການປະຈຳ</Link>
+          </div>
+          <div className="mt-4 space-y-2">
+            {recurringItems.map((item) => (
+              <div key={item.id} className="flex justify-between gap-4 rounded-lg border border-slate-200 p-3">
+                <span>{item.name}</span>
+                <span className="text-right text-sm text-slate-600">{item.next_due_date} · {formatMoney(Number(item.amount))} {item.currency}</span>
+              </div>
+            ))}
+            {!recurringItems.length && <p className="text-slate-500">ຍັງບໍ່ມີລາຍການປະຈຳ</p>}
+          </div>
         </section>
 
         <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
