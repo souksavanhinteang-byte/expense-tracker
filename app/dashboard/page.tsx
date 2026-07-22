@@ -257,86 +257,86 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const overdueRecurringCount = recurringItems.filter((item) => item.next_due_date <= new Date().toISOString().slice(0, 10)).length;
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
+    <main className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 p-4 text-slate-900 sm:p-6">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">ລະບົບບັນທຶກລາຍຮັບ–ລາຍຈ່າຍ</h1>
+            <h1 className="text-2xl font-bold leading-tight sm:text-3xl">ລະບົບບັນທຶກລາຍຮັບ–ລາຍຈ່າຍ</h1>
 
             <p className="mt-2 text-slate-600">
               ສະກຸນເງິນຫຼັກ: {profile?.default_currency ?? "LAK"}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="grid w-full grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
             <Link
               href="/accounts"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
             >
               ຈັດການບັນຊີ
             </Link>
 
             <Link
               href="/categories"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
             >
               ຈັດການໝວດໝູ່
             </Link>
 
             <Link
               href="/budgets"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
             >
               ຈັດການງົບປະມານ
             </Link>
 
             <Link
               href="/recurring"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
             >
               ລາຍການປະຈຳ
             </Link>
-            <Link href="/goals" className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100">ເປົ້າໝາຍການອອມ</Link>
+            <Link href="/goals" className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100">ເປົ້າໝາຍການອອມ</Link>
 
             <Link
               href="/transactions"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
             >
               ເບິ່ງລາຍການ
             </Link>
 
             <Link
               href="/transactions/new"
-              className="rounded-lg bg-emerald-600 px-5 py-3 text-center font-semibold text-white hover:bg-emerald-700"
+              className="flex min-h-16 items-center justify-center rounded-xl bg-emerald-600 px-2 py-2 text-center text-sm font-semibold leading-tight break-words text-white hover:bg-emerald-700"
             >
               + ເພີ່ມລາຍການ
             </Link>
 
             <Link
               href="/transfers/new"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
             >
               ໂອນເງິນ
             </Link>
 
             <Link
               href="/export"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
             >
               ສຳຮອງຂໍ້ມູນ
             </Link>
 
             <Link
               href="/import"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
             >
               ນຳເຂົ້າຂໍ້ມູນ
             </Link>
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <section className="rounded-xl bg-white p-5 shadow-sm">
+        <div className="mt-5 grid gap-3 md:mt-8 md:grid-cols-3 md:gap-4">
+          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
             <p className="text-sm text-slate-500">ລາຍຮັບເດືອນນີ້</p>
 
             <div className="mt-2 space-y-1 text-2xl font-bold text-emerald-600">
@@ -347,7 +347,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </div>
           </section>
 
-          <section className="rounded-xl bg-white p-5 shadow-sm">
+          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
             <p className="text-sm text-slate-500">ລາຍຈ່າຍເດືອນນີ້</p>
 
             <div className="mt-2 space-y-1 text-2xl font-bold text-red-600">
@@ -358,7 +358,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </div>
           </section>
 
-          <section className="rounded-xl bg-white p-5 shadow-sm">
+          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
             <p className="text-sm text-slate-500">ເງິນຄົງເຫຼືອ</p>
 
             <div className="mt-2 space-y-1 text-2xl font-bold">
@@ -376,7 +376,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </section>
         </div>
 
-        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
+        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">ງົບປະມານ</h2>
@@ -389,9 +389,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <BudgetSummary budgets={budgetProgress} />
         </section>
 
-        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm"><div className="flex justify-between"><h2 className="text-lg font-semibold">ເປົ້າໝາຍການອອມ</h2><Link href="/goals" className="text-sm font-semibold text-emerald-700 underline">ເບິ່ງທັງໝົດ</Link></div><div className="mt-4 space-y-2">{activeGoals.map((goal)=><div key={goal.id} className="flex justify-between rounded-lg border border-slate-200 p-3"><span>{goal.name}</span><span>{formatMoney(Number(goal.target_amount))} {goal.currency}{goal.target_date?` · ${goal.target_date}`:""}</span></div>)}{!activeGoals.length&&<p className="text-slate-500">ຍັງບໍ່ມີເປົ້າໝາຍ</p>}</div></section>
+        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><div className="flex justify-between"><h2 className="text-lg font-semibold">ເປົ້າໝາຍການອອມ</h2><Link href="/goals" className="text-sm font-semibold text-emerald-700 underline">ເບິ່ງທັງໝົດ</Link></div><div className="mt-4 space-y-2">{activeGoals.map((goal)=><div key={goal.id} className="flex flex-col gap-1 rounded-lg border border-slate-200 p-3 sm:flex-row sm:justify-between"><span className="break-words">{goal.name}</span><span className="break-words">{formatMoney(Number(goal.target_amount))} {goal.currency}{goal.target_date?` · ${goal.target_date}`:""}</span></div>)}{!activeGoals.length&&<p className="text-slate-500">ຍັງບໍ່ມີເປົ້າໝາຍ</p>}</div></section>
 
-        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
+        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">ລາຍການປະຈຳ</h2>
@@ -412,13 +412,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </div>
         </section>
 
-        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
+        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
           <h2 className="text-lg font-semibold">ລາຍຮັບ–ລາຍຈ່າຍ 6 ເດືອນຫຼ້າສຸດ</h2>
           <MonthlyIncomeExpenseChart groups={chartGroups} />
         </section>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
-          <section className="rounded-xl bg-white p-5 shadow-sm">
+          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
             <h2 className="text-lg font-semibold">ຍອດເງິນໃນແຕ່ລະບັນຊີ</h2>
 
             <div className="mt-4 space-y-3">
@@ -478,7 +478,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             )}
           </section>
 
-          <section className="rounded-xl bg-white p-5 shadow-sm">
+          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
             <h2 className="text-lg font-semibold">ໝວດໝູ່</h2>
 
             <p className="mt-4 text-3xl font-bold">{categories.length}</p>
@@ -487,7 +487,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </section>
         </div>
 
-        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
+        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold">ລາຍຈ່າຍຕາມໝວດໝູ່</h2>
 
@@ -518,7 +518,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <CategoryExpenseSummary groups={categoryExpenseGroups} />
         </section>
 
-        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
+        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">ລາຍການເດືອນນີ້</h2>
 
