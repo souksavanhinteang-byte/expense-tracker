@@ -8,6 +8,27 @@ function formatMoney(amount: number) {
   return new Intl.NumberFormat("lo-LA").format(amount);
 }
 
+type TransactionsPageProps = {
+  searchParams: Promise<{
+    q?: string | string[];
+    type?: string | string[];
+    month?: string | string[];
+    year?: string | string[];
+    category?: string | string[];
+  }>;
+};
+
+function getSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function escapeFilterValue(value: string) {
+  return value.replace(/[\\%_]/g, "\\\\$&").replace(/[(),]/g, "");
+}
+
+const filterControlClassName =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 [color-scheme:light]";
+
 async function deleteTransaction(formData: FormData) {
   "use server";
 
@@ -40,7 +61,24 @@ async function deleteTransaction(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-export default async function TransactionsPage() {
+export default async function TransactionsPage({
+  searchParams,
+}: TransactionsPageProps) {
+  const params = await searchParams;
+  const keyword = getSearchParam(params.q)?.trim() ?? "";
+  const selectedType = getSearchParam(params.type);
+  const type = selectedType === "income" || selectedType === "expense"
+    ? selectedType
+    : "";
+  const selectedMonth = Number(getSearchParam(params.month));
+  const month = Number.isInteger(selectedMonth) && selectedMonth >= 1 && selectedMonth <= 12
+    ? selectedMonth
+    : undefined;
+  const selectedYear = Number(getSearchParam(params.year));
+  const year = Number.isInteger(selectedYear) && selectedYear >= 1 && selectedYear <= 9999
+    ? selectedYear
+    : undefined;
+  const categoryId = getSearchParam(params.category) ?? "";
   const supabase = await createClient();
 
   const {
@@ -51,7 +89,7 @@ export default async function TransactionsPage() {
     redirect("/auth/login");
   }
 
-  const { data: transactions, error } = await supabase
+  let transactionsQuery = supabase
     .from("transactions")
     .select(`
       id,
@@ -69,11 +107,62 @@ export default async function TransactionsPage() {
         name
       )
     `)
+    .eq("user_id", user.id);
+
+  if (keyword) {
+    const filterKeyword = escapeFilterValue(keyword);
+    transactionsQuery = transactionsQuery.or(
+      `description.ilike.%${filterKeyword}%,note.ilike.%${filterKeyword}%`,
+    );
+  }
+
+  if (type) {
+    transactionsQuery = transactionsQuery.eq("type", type);
+  }
+
+  if (categoryId) {
+    transactionsQuery = transactionsQuery.eq("category_id", categoryId);
+  }
+
+  if (year && month) {
+    const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+    const nextMonthYear = month === 12 ? year + 1 : year;
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextMonthStart = `${nextMonthYear}-${String(nextMonth).padStart(2, "0")}-01`;
+
+    transactionsQuery = transactionsQuery
+      .gte("transaction_date", monthStart)
+      .lt("transaction_date", nextMonthStart);
+  } else if (year) {
+    transactionsQuery = transactionsQuery
+      .gte("transaction_date", `${year}-01-01`)
+      .lt("transaction_date", `${year + 1}-01-01`);
+  }
+
+  const { data: transactionsData, error } = await transactionsQuery
     .order("transaction_date", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  const transactions = (transactionsData ?? []).filter((transaction) => {
+    if (!month || year) {
+      return true;
+    }
+
+    return Number(transaction.transaction_date.slice(5, 7)) === month;
+  });
+
+  const { data: categories, error: categoriesError } = await supabase
+    .from("categories")
+    .select("id, name")
+    .eq("user_id", user.id)
+    .order("name");
+
+  if (categoriesError) {
+    throw new Error(categoriesError.message);
   }
 
   return (
@@ -108,9 +197,101 @@ export default async function TransactionsPage() {
         </div>
 
         <section className="mt-8 overflow-hidden rounded-xl bg-white shadow-sm">
+          <form
+            action="/transactions"
+            className="grid gap-4 border-b border-slate-200 p-5 sm:grid-cols-2 lg:grid-cols-6"
+          >
+            <label className="space-y-1 lg:col-span-2">
+              <span className="block text-sm font-medium">ຄົ້ນຫາ</span>
+              <input
+                name="q"
+                type="search"
+                defaultValue={keyword}
+                placeholder="ຄົ້ນຫາ..."
+                className={filterControlClassName}
+              />
+            </label>
+
+            <label className="space-y-1">
+              <span className="block text-sm font-medium">ປະເພດ</span>
+              <select
+                name="type"
+                defaultValue={type}
+                className={filterControlClassName}
+              >
+                <option value="">ທັງໝົດ</option>
+                <option value="income">ລາຍຮັບ</option>
+                <option value="expense">ລາຍຈ່າຍ</option>
+              </select>
+            </label>
+
+            <label className="space-y-1">
+              <span className="block text-sm font-medium">ເດືອນ</span>
+              <select
+                name="month"
+                defaultValue={month ? String(month) : ""}
+                className={filterControlClassName}
+              >
+                <option value="">ທັງໝົດ</option>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map(
+                  (monthNumber) => (
+                    <option key={monthNumber} value={monthNumber}>
+                      {monthNumber}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+
+            <label className="space-y-1">
+              <span className="block text-sm font-medium">ປີ</span>
+              <input
+                name="year"
+                type="number"
+                min="1"
+                max="9999"
+                defaultValue={year ?? ""}
+                placeholder="ປີ"
+                className={filterControlClassName}
+              />
+            </label>
+
+            <label className="space-y-1">
+              <span className="block text-sm font-medium">ໝວດໝູ່</span>
+              <select
+                name="category"
+                defaultValue={categoryId}
+                className={filterControlClassName}
+              >
+                <option value="">ທັງໝົດ</option>
+                {categories?.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex items-end gap-3 lg:col-span-6">
+              <button
+                type="submit"
+                className="rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700"
+              >
+                ກັ່ນຕອງ
+              </button>
+
+              <Link
+                href="/transactions"
+                className="rounded-lg border border-slate-300 bg-white px-5 py-2 font-semibold hover:bg-slate-100"
+              >
+                ລ້າງຕົວກອງ
+              </Link>
+            </div>
+          </form>
+
           <div className="border-b border-slate-200 p-5">
             <p className="font-semibold">
-              ທັງໝົດ {transactions?.length ?? 0} ລາຍການ
+              ທັງໝົດ {transactions.length} ລາຍການ
             </p>
           </div>
 
@@ -129,7 +310,7 @@ export default async function TransactionsPage() {
               </thead>
 
               <tbody className="divide-y divide-slate-200">
-                {transactions?.map((transaction) => {
+                {transactions.map((transaction) => {
                   const category = Array.isArray(transaction.categories)
                     ? transaction.categories[0]
                     : transaction.categories;
@@ -212,13 +393,13 @@ export default async function TransactionsPage() {
                   );
                 })}
 
-                {!transactions?.length && (
+                {!transactions.length && (
                   <tr>
                     <td
                       colSpan={7}
                       className="px-5 py-12 text-center text-slate-500"
                     >
-                      ຍັງບໍ່ມີລາຍການ
+                      ບໍ່ພົບລາຍການທີ່ຄົ້ນຫາ
                     </td>
                   </tr>
                 )}
