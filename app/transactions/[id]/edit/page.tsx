@@ -44,6 +44,10 @@ export default async function EditTransactionPage({
     notFound();
   }
 
+  if (transaction.type === "transfer") {
+    redirect("/transactions");
+  }
+
   const accountFilter = transaction.account_id
     ? `is_active.eq.true,id.eq.${transaction.account_id}`
     : "is_active.eq.true";
@@ -124,7 +128,7 @@ export default async function EditTransactionPage({
     ] = await Promise.all([
       supabase
         .from("transactions")
-        .select("account_id, category_id")
+        .select("account_id, category_id, type")
         .eq("id", id)
         .eq("user_id", user.id)
         .single(),
@@ -151,6 +155,10 @@ export default async function EditTransactionPage({
       !selectedCategoryResult.data
     ) {
       throw new Error("ບໍ່ພົບບັນຊີ");
+    }
+
+    if (existingTransactionResult.data.type === "transfer") {
+      throw new Error("ບໍ່ສາມາດແກ້ໄຂລາຍການໂອນເງິນ");
     }
 
     if (

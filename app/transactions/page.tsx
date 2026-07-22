@@ -67,7 +67,7 @@ export default async function TransactionsPage({
   const params = await searchParams;
   const keyword = getSearchParam(params.q)?.trim() ?? "";
   const selectedType = getSearchParam(params.type);
-  const type = selectedType === "income" || selectedType === "expense"
+  const type = selectedType === "income" || selectedType === "expense" || selectedType === "transfer"
     ? selectedType
     : "";
   const selectedMonth = Number(getSearchParam(params.month));
@@ -104,6 +104,9 @@ export default async function TransactionsPage({
         name
       ),
       accounts!transactions_account_id_fkey (
+        name
+      ),
+      destination_account:accounts!transactions_destination_account_id_fkey (
         name
       )
     `)
@@ -222,6 +225,7 @@ export default async function TransactionsPage({
                 <option value="">ທັງໝົດ</option>
                 <option value="income">ລາຍຮັບ</option>
                 <option value="expense">ລາຍຈ່າຍ</option>
+                <option value="transfer">ໂອນເງິນ</option>
               </select>
             </label>
 
@@ -318,11 +322,16 @@ export default async function TransactionsPage({
                   const account = Array.isArray(transaction.accounts)
                     ? transaction.accounts[0]
                     : transaction.accounts;
+                  const destinationAccount = Array.isArray(transaction.destination_account)
+                    ? transaction.destination_account[0]
+                    : transaction.destination_account;
+                  const isTransfer = transaction.type === "transfer";
+                  const transferDescription = `ໂອນຈາກ ${account?.name ?? "-"} ໄປ ${destinationAccount?.name ?? "-"}`;
 
                   return (
                     <tr
                       key={transaction.id}
-                      className="hover:bg-slate-50"
+                      className={isTransfer ? "bg-blue-50/50 hover:bg-blue-50" : "hover:bg-slate-50"}
                     >
                       <td className="whitespace-nowrap px-5 py-4">
                         {transaction.transaction_date}
@@ -330,7 +339,7 @@ export default async function TransactionsPage({
 
                       <td className="px-5 py-4">
                         <p className="font-medium">
-                          {transaction.description}
+                          {isTransfer ? transferDescription : transaction.description}
                         </p>
 
                         {transaction.note && (
@@ -343,45 +352,55 @@ export default async function TransactionsPage({
                       <td className="px-5 py-4">
                         <span
                           className={`rounded-full px-3 py-1 text-sm font-medium ${
-                            transaction.type === "income"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-red-100 text-red-700"
+                            isTransfer
+                              ? "bg-blue-100 text-blue-700"
+                              : transaction.type === "income"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-red-100 text-red-700"
                           }`}
                         >
-                          {transaction.type === "income"
-                            ? "ລາຍຮັບ"
-                            : "ລາຍຈ່າຍ"}
+                          {isTransfer
+                            ? "ໂອນເງິນ"
+                            : transaction.type === "income"
+                              ? "ລາຍຮັບ"
+                              : "ລາຍຈ່າຍ"}
                         </span>
                       </td>
 
                       <td className="px-5 py-4">
-                        {category?.name ?? "-"}
+                        {isTransfer ? "-" : category?.name ?? "-"}
                       </td>
 
                       <td className="px-5 py-4">
-                        {account?.name ?? "-"}
+                        {isTransfer
+                          ? `${account?.name ?? "-"} → ${destinationAccount?.name ?? "-"}`
+                          : account?.name ?? "-"}
                       </td>
 
                       <td
                         className={`whitespace-nowrap px-5 py-4 text-right font-semibold ${
-                          transaction.type === "income"
-                            ? "text-emerald-600"
-                            : "text-red-600"
+                          isTransfer
+                            ? "text-blue-600"
+                            : transaction.type === "income"
+                              ? "text-emerald-600"
+                              : "text-red-600"
                         }`}
                       >
-                        {transaction.type === "income" ? "+" : "-"}
+                        {!isTransfer && (transaction.type === "income" ? "+" : "-")}
                         {formatMoney(Number(transaction.amount))}{" "}
                         {transaction.currency}
                       </td>
 
                       <td className="whitespace-nowrap px-5 py-4">
                         <div className="flex justify-center gap-2">
-                          <Link
-                            href={`/transactions/${transaction.id}/edit`}
-                            className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100"
-                          >
-                            ແກ້ໄຂ
-                          </Link>
+                          {!isTransfer && (
+                            <Link
+                              href={`/transactions/${transaction.id}/edit`}
+                              className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100"
+                            >
+                              ແກ້ໄຂ
+                            </Link>
+                          )}
 
                           <DeleteTransactionButton
                             transactionId={transaction.id}

@@ -130,6 +130,13 @@ export default async function DashboardPage() {
             >
               + ເພີ່ມລາຍການ
             </Link>
+
+            <Link
+              href="/transfers/new"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+            >
+              ໂອນເງິນ
+            </Link>
           </div>
         </div>
 
@@ -207,31 +214,37 @@ export default async function DashboardPage() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {transactions.slice(0, 10).map((transaction) => (
-              <div
-                key={transaction.id}
-                className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4"
-              >
-                <div>
-                  <p className="font-medium">{transaction.description}</p>
+            {transactions.slice(0, 10).map((transaction) => {
+              const isTransfer = transaction.type === "transfer";
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    {transaction.transaction_date}
+              return (
+                <div
+                  key={transaction.id}
+                  className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4"
+                >
+                  <div>
+                    <p className="font-medium">{transaction.description}</p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      {transaction.transaction_date}
+                    </p>
+                  </div>
+
+                  <p
+                    className={`font-semibold ${
+                      isTransfer
+                        ? "text-blue-600"
+                        : transaction.type === "income"
+                          ? "text-emerald-600"
+                          : "text-red-600"
+                    }`}
+                  >
+                    {!isTransfer && (transaction.type === "income" ? "+" : "-")}
+                    {formatMoney(Number(transaction.amount))} ₭
                   </p>
                 </div>
-
-                <p
-                  className={`font-semibold ${
-                    transaction.type === "income"
-                      ? "text-emerald-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {transaction.type === "income" ? "+" : "-"}
-                  {formatMoney(Number(transaction.amount))} ₭
-                </p>
-              </div>
-            ))}
+              );
+            })}
 
             {!transactions.length && (
               <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-slate-500">
