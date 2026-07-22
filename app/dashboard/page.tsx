@@ -94,6 +94,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     categoryExpenseResult,
     budgetsResult,
     recurringResult,
+    goalsResult,
   ] =
     await Promise.all([
       supabase
@@ -161,6 +162,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         .eq("is_active", true)
         .order("next_due_date")
         .limit(5),
+
+      supabase.from("savings_goals").select("id, name, target_amount, currency, target_date, is_active").eq("user_id", user.id).eq("is_active", true).order("target_date").limit(5),
     ]);
 
   if (profileResult.error) {
@@ -198,6 +201,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   if (recurringResult.error) {
     throw new Error(recurringResult.error.message);
   }
+  if (goalsResult.error) throw new Error(goalsResult.error.message);
 
   const profile = profileResult.data;
   const accounts = accountsResult.data ?? [];
@@ -249,6 +253,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     categoryExpenseResult.data ?? [],
   );
   const recurringItems = recurringResult.data ?? [];
+  const activeGoals = goalsResult.data ?? [];
   const overdueRecurringCount = recurringItems.filter((item) => item.next_due_date <= new Date().toISOString().slice(0, 10)).length;
 
   return (
@@ -291,6 +296,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             >
               ລາຍການປະຈຳ
             </Link>
+            <Link href="/goals" className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100">ເປົ້າໝາຍການອອມ</Link>
 
             <Link
               href="/transactions"
@@ -382,6 +388,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </div>
           <BudgetSummary budgets={budgetProgress} />
         </section>
+
+        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm"><div className="flex justify-between"><h2 className="text-lg font-semibold">ເປົ້າໝາຍການອອມ</h2><Link href="/goals" className="text-sm font-semibold text-emerald-700 underline">ເບິ່ງທັງໝົດ</Link></div><div className="mt-4 space-y-2">{activeGoals.map((goal)=><div key={goal.id} className="flex justify-between rounded-lg border border-slate-200 p-3"><span>{goal.name}</span><span>{formatMoney(Number(goal.target_amount))} {goal.currency}{goal.target_date?` · ${goal.target_date}`:""}</span></div>)}{!activeGoals.length&&<p className="text-slate-500">ຍັງບໍ່ມີເປົ້າໝາຍ</p>}</div></section>
 
         <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-4">
