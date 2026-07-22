@@ -15,6 +15,7 @@ export default async function NewTransactionPage() {
   const { data: accounts, error: accountsError } = await supabase
     .from("accounts")
     .select("id, name, currency")
+    .eq("user_id", user.id)
     .eq("is_active", true)
     .order("name");
 
@@ -69,6 +70,18 @@ export default async function NewTransactionPage() {
       !["income", "expense"].includes(type)
     ) {
       throw new Error("ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ");
+    }
+
+    const { data: selectedAccount, error: accountError } = await supabase
+      .from("accounts")
+      .select("id")
+      .eq("id", accountId)
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .single();
+
+    if (accountError || !selectedAccount) {
+      throw new Error("ບໍ່ພົບບັນຊີທີ່ເປີດໃຊ້ງານ");
     }
 
     const { data: selectedCategory, error: categoryError } =

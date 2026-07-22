@@ -23,14 +23,9 @@ export default async function EditTransactionPage({
     redirect("/auth/login");
   }
 
-  const [
-    transactionResult,
-    accountsResult,
-    categoriesResult,
-  ] = await Promise.all([
-    supabase
-      .from("transactions")
-      .select(`
+  const { data: transaction, error: transactionError } = await supabase
+    .from("transactions")
+    .select(`
         id,
         transaction_date,
         type,
@@ -40,13 +35,24 @@ export default async function EditTransactionPage({
         category_id,
         note
       `)
-      .eq("id", id)
-      .single(),
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
 
+  if (transactionError || !transaction) {
+    notFound();
+  }
+
+  const accountFilter = transaction.account_id
+    ? `is_active.eq.true,id.eq.${transaction.account_id}`
+    : "is_active.eq.true";
+
+  const [accountsResult, categoriesResult] = await Promise.all([
     supabase
       .from("accounts")
       .select("id, name, currency")
-      .eq("is_active", true)
+      .eq("user_id", user.id)
+      .or(accountFilter)
       .order("name"),
 
     supabase
@@ -56,10 +62,6 @@ export default async function EditTransactionPage({
       .order("name"),
   ]);
 
-  if (transactionResult.error || !transactionResult.data) {
-    notFound();
-  }
-
   if (accountsResult.error) {
     throw new Error(accountsResult.error.message);
   }
@@ -68,7 +70,6 @@ export default async function EditTransactionPage({
     throw new Error(categoriesResult.error.message);
   }
 
-  const transaction = transactionResult.data;
   const accounts = accountsResult.data ?? [];
   const categories = categoriesResult.data ?? [];
 
@@ -111,6 +112,37 @@ export default async function EditTransactionPage({
       throw new Error("ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ");
     }
 
+    const [existingTransactionResult, selectedAccountResult] = await Promise.all([
+      supabase
+        .from("transactions")
+        .select("account_id")
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .single(),
+      supabase
+        .from("accounts")
+        .select("id, is_active")
+        .eq("id", accountId)
+        .eq("user_id", user.id)
+        .single(),
+    ]);
+
+    if (
+      existingTransactionResult.error ||
+      !existingTransactionResult.data ||
+      selectedAccountResult.error ||
+      !selectedAccountResult.data
+    ) {
+      throw new Error("ບໍ່ພົບບັນຊີ");
+    }
+
+    if (
+      !selectedAccountResult.data.is_active &&
+      existingTransactionResult.data.account_id !== accountId
+    ) {
+      throw new Error("ບໍ່ສາມາດເລືອກບັນຊີທີ່ປິດໃຊ້ງານ");
+    }
+
     const { data: selectedCategory, error: categoryError } =
       await supabase
         .from("categories")
@@ -139,7 +171,8 @@ export default async function EditTransactionPage({
         category_id: categoryId,
         note: note || null,
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user.id);
 
     if (error) {
       throw new Error(error.message);

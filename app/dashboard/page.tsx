@@ -37,6 +37,7 @@ export default async function DashboardPage() {
       supabase
         .from("accounts")
         .select("id, name, account_type, currency, initial_balance")
+        .eq("user_id", user.id)
         .eq("is_active", true)
         .order("created_at"),
 
@@ -100,7 +101,14 @@ export default async function DashboardPage() {
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/accounts"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+            >
+              ຈັດການບັນຊີ
+            </Link>
+
             <Link
               href="/transactions"
               className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
