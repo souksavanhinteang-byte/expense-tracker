@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BudgetSummary } from "@/components/budget-summary";
 import { CategoryExpenseSummary } from "@/components/category-expense-summary";
 import { MonthlyIncomeExpenseChart } from "@/components/monthly-income-expense-chart";
 import { calculateAccountBalances, parseWholeAmount } from "@/lib/account-balances";
@@ -8,6 +9,7 @@ import {
   createMonthlyIncomeExpenseReport,
 } from "@/lib/dashboard-reports";
 import { formatMoney } from "@/lib/format-money";
+import { createBudgetProgressReport } from "@/lib/budget-reports";
 import { createClient } from "@/lib/supabase/server";
 
 type DashboardPageProps = {
@@ -90,6 +92,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     balanceTransactionsResult,
     chartTransactionsResult,
     categoryExpenseResult,
+    budgetsResult,
   ] =
     await Promise.all([
       supabase
@@ -141,6 +144,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         .eq("type", "expense")
         .gte("transaction_date", selectedMonthRange.start)
         .lt("transaction_date", selectedMonthRange.end),
+
+      supabase
+        .from("budgets")
+        .select("id, category_id, amount, currency, categories ( name, is_active )")
+        .eq("user_id", user.id)
+        .eq("month", selectedMonth)
+        .eq("year", selectedYear)
+        .order("currency"),
     ]);
 
   if (profileResult.error) {
@@ -169,6 +180,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   if (categoryExpenseResult.error) {
     throw new Error(categoryExpenseResult.error.message);
+  }
+
+  if (budgetsResult.error) {
+    throw new Error(budgetsResult.error.message);
   }
 
   const profile = profileResult.data;
@@ -206,6 +221,20 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     };
   });
   const categoryExpenseGroups = createCategoryExpenseReport(categoryExpenseTransactions);
+  const budgetProgress = createBudgetProgressReport(
+    (budgetsResult.data ?? []).map((budget) => {
+      const category = Array.isArray(budget.categories)
+        ? budget.categories[0]
+        : budget.categories;
+
+      return {
+        ...budget,
+        categoryName: category?.name ?? "ບໍ່ພົບໝວດໝູ່",
+        categoryIsActive: category?.is_active ?? false,
+      };
+    }),
+    categoryExpenseResult.data ?? [],
+  );
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
@@ -232,6 +261,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
             >
               ຈັດການໝວດໝູ່
+            </Link>
+
+            <Link
+              href="/budgets"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+            >
+              ຈັດການງົບປະມານ
             </Link>
 
             <Link
@@ -311,6 +347,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </div>
           </section>
         </div>
+
+        <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">ງົບປະມານ</h2>
+              <p className="mt-1 text-sm text-slate-500">ເດືອນ {selectedMonth} ປີ {selectedYear}</p>
+            </div>
+            <Link href={`/budgets?month=${selectedMonth}&year=${selectedYear}`} className="text-sm font-semibold text-emerald-700 underline">
+              ຈັດການງົບປະມານ
+            </Link>
+          </div>
+          <BudgetSummary budgets={budgetProgress} />
+        </section>
 
         <section className="mt-8 rounded-xl bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold">ລາຍຮັບ–ລາຍຈ່າຍ 6 ເດືອນຫຼ້າສຸດ</h2>
