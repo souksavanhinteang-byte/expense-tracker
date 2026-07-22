@@ -64,5 +64,12 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-phetsarath), "Phetsarath OT", "Noto Sans Lao", sans-serif;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
   }
 }
