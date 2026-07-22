@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
+import { TransactionTypeCategoryFields } from "@/components/transaction-type-category-fields";
 import { createClient } from "@/lib/supabase/server";
 
 type EditTransactionPageProps = {
@@ -46,6 +47,9 @@ export default async function EditTransactionPage({
   const accountFilter = transaction.account_id
     ? `is_active.eq.true,id.eq.${transaction.account_id}`
     : "is_active.eq.true";
+  const categoryFilter = transaction.category_id
+    ? `is_active.eq.true,id.eq.${transaction.category_id}`
+    : "is_active.eq.true";
 
   const [accountsResult, categoriesResult] = await Promise.all([
     supabase
@@ -57,8 +61,9 @@ export default async function EditTransactionPage({
 
     supabase
       .from("categories")
-      .select("id, name, type")
-      .eq("is_active", true)
+      .select("id, name, type, is_active")
+      .eq("user_id", user.id)
+      .or(categoryFilter)
       .order("name"),
   ]);
 
@@ -112,10 +117,14 @@ export default async function EditTransactionPage({
       throw new Error("ກະລຸນາປ້ອນຂໍ້ມູນໃຫ້ຄົບ");
     }
 
-    const [existingTransactionResult, selectedAccountResult] = await Promise.all([
+    const [
+      existingTransactionResult,
+      selectedAccountResult,
+      selectedCategoryResult,
+    ] = await Promise.all([
       supabase
         .from("transactions")
-        .select("account_id")
+        .select("account_id, category_id")
         .eq("id", id)
         .eq("user_id", user.id)
         .single(),
@@ -125,13 +134,21 @@ export default async function EditTransactionPage({
         .eq("id", accountId)
         .eq("user_id", user.id)
         .single(),
+      supabase
+        .from("categories")
+        .select("id, type, is_active")
+        .eq("id", categoryId)
+        .eq("user_id", user.id)
+        .single(),
     ]);
 
     if (
       existingTransactionResult.error ||
       !existingTransactionResult.data ||
       selectedAccountResult.error ||
-      !selectedAccountResult.data
+      !selectedAccountResult.data ||
+      selectedCategoryResult.error ||
+      !selectedCategoryResult.data
     ) {
       throw new Error("ບໍ່ພົບບັນຊີ");
     }
@@ -143,18 +160,14 @@ export default async function EditTransactionPage({
       throw new Error("ບໍ່ສາມາດເລືອກບັນຊີທີ່ປິດໃຊ້ງານ");
     }
 
-    const { data: selectedCategory, error: categoryError } =
-      await supabase
-        .from("categories")
-        .select("type")
-        .eq("id", categoryId)
-        .single();
-
-    if (categoryError || !selectedCategory) {
-      throw new Error("ບໍ່ພົບໝວດໝູ່");
+    if (
+      !selectedCategoryResult.data.is_active &&
+      existingTransactionResult.data.category_id !== categoryId
+    ) {
+      throw new Error("ບໍ່ສາມາດເລືອກໝວດໝູ່ທີ່ປິດໃຊ້ງານ");
     }
 
-    if (selectedCategory.type !== type) {
+    if (selectedCategoryResult.data.type !== type) {
       throw new Error(
         "ປະເພດລາຍການບໍ່ກົງກັບໝວດໝູ່",
       );
@@ -214,21 +227,11 @@ export default async function EditTransactionPage({
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">
-              ປະເພດ
-            </label>
-
-            <select
-              name="type"
-              defaultValue={transaction.type}
-              required
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900"
-            >
-              <option value="expense">ລາຍຈ່າຍ</option>
-              <option value="income">ລາຍຮັບ</option>
-            </select>
-          </div>
+          <TransactionTypeCategoryFields
+            categories={categories}
+            defaultType={transaction.type === "income" ? "income" : "expense"}
+            defaultCategoryId={transaction.category_id}
+          />
 
           <div className="space-y-2">
             <label className="block text-sm font-medium">
@@ -258,28 +261,6 @@ export default async function EditTransactionPage({
               required
               className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900"
             />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">
-              ໝວດໝູ່
-            </label>
-
-            <select
-              name="category_id"
-              defaultValue={transaction.category_id ?? ""}
-              required
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900"
-            >
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name} —{" "}
-                  {category.type === "expense"
-                    ? "ລາຍຈ່າຍ"
-                    : "ລາຍຮັບ"}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="space-y-2">

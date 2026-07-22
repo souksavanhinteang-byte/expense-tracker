@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { TransactionTypeCategoryFields } from "@/components/transaction-type-category-fields";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function NewTransactionPage() {
@@ -21,7 +22,8 @@ export default async function NewTransactionPage() {
 
   const { data: categories, error: categoriesError } = await supabase
     .from("categories")
-    .select("id, name, type")
+    .select("id, name, type, is_active")
+    .eq("user_id", user.id)
     .eq("is_active", true)
     .order("name");
 
@@ -89,6 +91,8 @@ export default async function NewTransactionPage() {
         .from("categories")
         .select("id, type")
         .eq("id", categoryId)
+        .eq("user_id", user.id)
+        .eq("is_active", true)
         .single();
 
     if (categoryError || !selectedCategory) {
@@ -153,21 +157,10 @@ export default async function NewTransactionPage() {
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">
-              ປະເພດ
-            </label>
-
-            <select
-              name="type"
-              required
-              defaultValue="expense"
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-            >
-              <option value="expense">ລາຍຈ່າຍ</option>
-              <option value="income">ລາຍຮັບ</option>
-            </select>
-          </div>
+          <TransactionTypeCategoryFields
+            categories={categories ?? []}
+            defaultType="expense"
+          />
 
           <div className="space-y-2">
             <label className="block text-sm font-medium">
@@ -197,32 +190,6 @@ export default async function NewTransactionPage() {
               required
               className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
             />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">
-              ໝວດໝູ່
-            </label>
-
-            <select
-              name="category_id"
-              required
-              defaultValue=""
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-            >
-              <option value="" disabled>
-                ເລືອກໝວດໝູ່
-              </option>
-
-              {categories?.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name} —{" "}
-                  {category.type === "expense"
-                    ? "ລາຍຈ່າຍ"
-                    : "ລາຍຮັບ"}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="space-y-2">

@@ -44,6 +44,7 @@ export default async function DashboardPage() {
       supabase
         .from("categories")
         .select("id, name, type")
+        .eq("user_id", user.id)
         .eq("is_active", true)
         .order("name"),
 
@@ -107,6 +108,13 @@ export default async function DashboardPage() {
               className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
             >
               ຈັດການບັນຊີ
+            </Link>
+
+            <Link
+              href="/categories"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+            >
+              ຈັດການໝວດໝູ່
             </Link>
 
             <Link
