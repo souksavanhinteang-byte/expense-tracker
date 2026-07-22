@@ -27,7 +27,7 @@ export type CurrencyBalanceTotal = {
   total: number;
 };
 
-function parseWholeAmount(value: unknown, label: string) {
+export function parseWholeAmount(value: unknown, label: string) {
   const amount = typeof value === "number" ? value : Number(value);
 
   if (!Number.isSafeInteger(amount)) {
@@ -37,7 +37,7 @@ function parseWholeAmount(value: unknown, label: string) {
   return amount;
 }
 
-function addAmount(balance: number, amount: number, label: string) {
+export function addWholeAmounts(balance: number, amount: number, label: string) {
   const nextBalance = balance + amount;
 
   if (!Number.isSafeInteger(nextBalance)) {
@@ -97,7 +97,7 @@ export function calculateAccountBalances(
     if (transaction.type === "income" || transaction.type === "expense") {
       const account = getAccount(accountsById, transaction.account_id, "ລາຍການ");
       validateTransactionCurrency(transaction, account);
-      account.balance = addAmount(
+      account.balance = addWholeAmounts(
         account.balance,
         transaction.type === "income" ? amount : -amount,
         `ຍອດຂອງ ${account.name}`,
@@ -115,12 +115,12 @@ export function calculateAccountBalances(
 
       validateTransactionCurrency(transaction, sourceAccount);
       validateTransactionCurrency(transaction, destinationAccount);
-      sourceAccount.balance = addAmount(
+      sourceAccount.balance = addWholeAmounts(
         sourceAccount.balance,
         -amount,
         `ຍອດຂອງ ${sourceAccount.name}`,
       );
-      destinationAccount.balance = addAmount(
+      destinationAccount.balance = addWholeAmounts(
         destinationAccount.balance,
         amount,
         `ຍອດຂອງ ${destinationAccount.name}`,
@@ -136,7 +136,7 @@ export function calculateAccountBalances(
   for (const account of accountBalances) {
     totalsByCurrency.set(
       account.currency,
-      addAmount(
+      addWholeAmounts(
         totalsByCurrency.get(account.currency) ?? 0,
         account.balance,
         `ຍອດລວມ ${account.currency}`,
