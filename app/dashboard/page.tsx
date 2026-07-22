@@ -261,6 +261,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             >
               ສຳຮອງຂໍ້ມູນ
             </Link>
+
+            <Link
+              href="/import"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+            >
+              ນຳເຂົ້າຂໍ້ມູນ
+            </Link>
           </div>
         </div>
 
