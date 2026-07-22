@@ -254,6 +254,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             >
               ໂອນເງິນ
             </Link>
+
+            <Link
+              href="/export"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-center font-semibold hover:bg-slate-100"
+            >
+              ສຳຮອງຂໍ້ມູນ
+            </Link>
           </div>
         </div>
 
