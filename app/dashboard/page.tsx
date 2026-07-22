@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { calculateAccountBalances } from "@/lib/account-balances";
 import { createClient } from "@/lib/supabase/server";
 
 function formatMoney(amount: number) {
@@ -26,7 +27,13 @@ export default async function DashboardPage() {
     .toISOString()
     .slice(0, 10);
 
-  const [profileResult, accountsResult, categoriesResult, transactionsResult] =
+  const [
+    profileResult,
+    accountsResult,
+    categoriesResult,
+    transactionsResult,
+    balanceTransactionsResult,
+  ] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -36,9 +43,8 @@ export default async function DashboardPage() {
 
       supabase
         .from("accounts")
-        .select("id, name, account_type, currency, initial_balance")
+        .select("id, name, account_type, currency, initial_balance, is_active")
         .eq("user_id", user.id)
-        .eq("is_active", true)
         .order("created_at"),
 
       supabase
@@ -53,10 +59,16 @@ export default async function DashboardPage() {
         .select(
           "id, transaction_date, type, amount, description, currency, created_at",
         )
+        .eq("user_id", user.id)
         .gte("transaction_date", startOfMonth)
         .lte("transaction_date", endOfMonth)
         .order("transaction_date", { ascending: false })
         .order("created_at", { ascending: false }),
+
+      supabase
+        .from("transactions")
+        .select("type, amount, account_id, destination_account_id, currency")
+        .eq("user_id", user.id),
     ]);
 
   if (profileResult.error) {
@@ -75,10 +87,18 @@ export default async function DashboardPage() {
     throw new Error(transactionsResult.error.message);
   }
 
+  if (balanceTransactionsResult.error) {
+    throw new Error(balanceTransactionsResult.error.message);
+  }
+
   const profile = profileResult.data;
   const accounts = accountsResult.data ?? [];
   const categories = categoriesResult.data ?? [];
   const transactions = transactionsResult.data ?? [];
+  const { accounts: accountBalances, totalsByCurrency } = calculateAccountBalances(
+    accounts,
+    balanceTransactionsResult.data ?? [],
+  );
 
   const totalIncome = transactions
     .filter((item) => item.type === "income")
@@ -172,27 +192,63 @@ export default async function DashboardPage() {
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
           <section className="rounded-xl bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold">ບັນຊີຂອງຂ້ອຍ</h2>
+            <h2 className="text-lg font-semibold">ຍອດເງິນໃນແຕ່ລະບັນຊີ</h2>
 
             <div className="mt-4 space-y-3">
-              {accounts.map((account) => (
+              {accountBalances.map((account) => (
                 <div
                   key={account.id}
                   className="flex justify-between rounded-lg border border-slate-200 p-3"
                 >
-                  <span>{account.name}</span>
+                  <div>
+                    <p>{account.name}</p>
+                    {!account.is_active && (
+                      <p className="mt-1 text-sm text-slate-500">ປິດໃຊ້ງານ</p>
+                    )}
+                  </div>
 
-                  <span>
-                    {formatMoney(Number(account.initial_balance))}{" "}
-                    {account.currency}
-                  </span>
+                  <div className="text-right">
+                    <p className="text-sm text-slate-500">ຍອດຄົງເຫຼືອ</p>
+                    <p
+                      className={`font-semibold ${
+                        account.balance > 0
+                          ? "text-emerald-600"
+                          : account.balance < 0
+                            ? "text-red-600"
+                            : "text-slate-700"
+                      }`}
+                    >
+                      {formatMoney(account.balance)} {account.currency}
+                    </p>
+                  </div>
                 </div>
               ))}
 
-              {!accounts.length && (
+              {!accountBalances.length && (
                 <p className="text-slate-500">ຍັງບໍ່ມີບັນຊີ</p>
               )}
             </div>
+
+            {!!totalsByCurrency.length && (
+              <div className="mt-4 space-y-2 border-t border-slate-200 pt-4">
+                {totalsByCurrency.map((total) => (
+                  <div key={total.currency} className="flex justify-between font-semibold">
+                    <span>ລວມທັງໝົດ</span>
+                    <span
+                      className={
+                        total.total > 0
+                          ? "text-emerald-600"
+                          : total.total < 0
+                            ? "text-red-600"
+                            : "text-slate-700"
+                      }
+                    >
+                      {formatMoney(total.total)} {total.currency}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="rounded-xl bg-white p-5 shadow-sm">

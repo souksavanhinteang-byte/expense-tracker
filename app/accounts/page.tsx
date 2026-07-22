@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { calculateAccountBalances } from "@/lib/account-balances";
 import { createClient } from "@/lib/supabase/server";
+
+function formatMoney(amount: number) {
+  return new Intl.NumberFormat("lo-LA").format(amount);
+}
 
 type AccountsPageProps = {
   searchParams: Promise<{
@@ -23,13 +28,27 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
 
   const { data: accounts, error: accountsError } = await supabase
     .from("accounts")
-    .select("id, name, currency, is_active")
+    .select("id, name, currency, initial_balance, is_active")
     .eq("user_id", user.id)
     .order("name");
+
+  const { data: transactions, error: transactionsError } = await supabase
+    .from("transactions")
+    .select("type, amount, account_id, destination_account_id, currency")
+    .eq("user_id", user.id);
 
   if (accountsError) {
     throw new Error(accountsError.message);
   }
+
+  if (transactionsError) {
+    throw new Error(transactionsError.message);
+  }
+
+  const { accounts: accountBalances } = calculateAccountBalances(
+    accounts ?? [],
+    transactions ?? [],
+  );
 
   async function toggleAccountStatus(formData: FormData) {
     "use server";
@@ -144,20 +163,32 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
 
         <section className="mt-8 overflow-hidden rounded-xl bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]">
+            <table className="w-full min-w-[760px]">
               <thead className="bg-slate-100 text-left text-sm">
                 <tr>
                   <th className="px-5 py-4">ຊື່ບັນຊີ</th>
                   <th className="px-5 py-4">ສະກຸນເງິນ</th>
+                  <th className="px-5 py-4 text-right">ຍອດຄົງເຫຼືອ</th>
                   <th className="px-5 py-4">ສະຖານະ</th>
                   <th className="px-5 py-4 text-center">ຈັດການ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {(accounts ?? []).map((account) => (
+                {accountBalances.map((account) => (
                   <tr key={account.id} className="hover:bg-slate-50">
                     <td className="px-5 py-4 font-medium">{account.name}</td>
                     <td className="px-5 py-4">{account.currency}</td>
+                    <td
+                      className={`whitespace-nowrap px-5 py-4 text-right font-semibold ${
+                        account.balance > 0
+                          ? "text-emerald-600"
+                          : account.balance < 0
+                            ? "text-red-600"
+                            : "text-slate-700"
+                      }`}
+                    >
+                      {formatMoney(account.balance)} {account.currency}
+                    </td>
                     <td className="px-5 py-4">
                       <span
                         className={`rounded-full px-3 py-1 text-sm font-medium ${
@@ -190,9 +221,9 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                     </td>
                   </tr>
                 ))}
-                {!accounts?.length && (
+                {!accountBalances.length && (
                   <tr>
-                    <td colSpan={4} className="px-5 py-12 text-center text-slate-500">
+                    <td colSpan={5} className="px-5 py-12 text-center text-slate-500">
                       ຍັງບໍ່ມີບັນຊີ
                     </td>
                   </tr>
