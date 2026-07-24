@@ -65,16 +65,16 @@ export async function DashboardHeader({ userId }: { userId: string }) {
 
 export function DashboardNavigation() {
   return <nav aria-label="ເມນູຫຼັກ" className="grid w-full grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
-    <Link href="/accounts" className="dashboard-nav-link">ຈັດການບັນຊີ</Link>
-    <Link href="/categories" className="dashboard-nav-link">ຈັດການໝວດໝູ່</Link>
-    <Link href="/budgets" className="dashboard-nav-link">ຈັດການງົບປະມານ</Link>
-    <Link href="/recurring" className="dashboard-nav-link">ລາຍການປະຈຳ</Link>
-    <Link href="/goals" className="dashboard-nav-link">ເປົ້າໝາຍການອອມ</Link>
-    <Link href="/transactions" className="dashboard-nav-link">ເບິ່ງລາຍການ</Link>
-    <Link href="/transactions/new" className="dashboard-nav-link bg-emerald-600 text-white hover:bg-emerald-700">+ ເພີ່ມລາຍການ</Link>
-    <Link href="/transfers/new" className="dashboard-nav-link">ໂອນເງິນ</Link>
-    <Link href="/export" className="dashboard-nav-link">ສຳຮອງຂໍ້ມູນ</Link>
-    <Link href="/import" className="dashboard-nav-link">ນຳເຂົ້າຂໍ້ມູນ</Link>
+    <Link href="/accounts" prefetch={false} className="dashboard-nav-link">ຈັດການບັນຊີ</Link>
+    <Link href="/categories" prefetch={false} className="dashboard-nav-link">ຈັດການໝວດໝູ່</Link>
+    <Link href="/budgets" prefetch={false} className="dashboard-nav-link">ຈັດການງົບປະມານ</Link>
+    <Link href="/recurring" prefetch={false} className="dashboard-nav-link">ລາຍການປະຈຳ</Link>
+    <Link href="/goals" prefetch={false} className="dashboard-nav-link">ເປົ້າໝາຍການອອມ</Link>
+    <Link href="/transactions" prefetch={false} className="dashboard-nav-link">ເບິ່ງລາຍການ</Link>
+    <Link href="/transactions/new" prefetch={false} className="dashboard-nav-link bg-emerald-600 text-white hover:bg-emerald-700">+ ເພີ່ມລາຍການ</Link>
+    <Link href="/transfers/new" prefetch={false} className="dashboard-nav-link">ໂອນເງິນ</Link>
+    <Link href="/export" prefetch={false} className="dashboard-nav-link">ສຳຮອງຂໍ້ມູນ</Link>
+    <Link href="/import" prefetch={false} className="dashboard-nav-link">ນຳເຂົ້າຂໍ້ມູນ</Link>
   </nav>;
 }
 
@@ -160,7 +160,7 @@ export async function BudgetSummarySection({ selectedPeriod, userId }: { selecte
       if (budgetsResult.error) throw new Error(budgetsResult.error.message);
       if (expensesResult.error) throw new Error(expensesResult.error.message);
       const budgetProgress = createBudgetProgressReport((budgetsResult.data ?? []).map((budget) => { const category = Array.isArray(budget.categories) ? budget.categories[0] : budget.categories; return { ...budget, categoryName: category?.name ?? "ບໍ່ພົບໝວດໝູ່", categoryIsActive: category?.is_active ?? false }; }), expensesResult.data ?? []);
-      return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">ງົບປະມານ</h2><p className="mt-1 text-sm text-slate-500">ເດືອນ {selectedPeriod.month} ປີ {selectedPeriod.year}</p></div><Link href={`/budgets?month=${selectedPeriod.month}&year=${selectedPeriod.year}`} className="text-sm font-semibold text-emerald-700 underline">ຈັດການງົບປະມານ</Link></div><BudgetSummary budgets={budgetProgress} /></section>;
+      return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">ງົບປະມານ</h2><p className="mt-1 text-sm text-slate-500">ເດືອນ {selectedPeriod.month} ປີ {selectedPeriod.year}</p></div><Link href={`/budgets?month=${selectedPeriod.month}&year=${selectedPeriod.year}`} prefetch={false} className="text-sm font-semibold text-emerald-700 underline">ຈັດການງົບປະມານ</Link></div><BudgetSummary budgets={budgetProgress} /></section>;
     });
   } catch {
     return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><h2 className="text-lg font-semibold">ງົບປະມານ</h2><SectionError /></section>;
@@ -173,7 +173,7 @@ export async function SavingsGoalsSummarySection({ userId }: { userId: string })
       const supabase = await createClient();
       const result = await supabase.from("savings_goals").select("id, name, target_amount, currency, target_date").eq("user_id", userId).eq("is_active", true).order("target_date").limit(5);
       if (result.error) throw new Error(result.error.message);
-      return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><div className="flex justify-between"><h2 className="text-lg font-semibold">ເປົ້າໝາຍການອອມ</h2><Link href="/goals" className="text-sm font-semibold text-emerald-700 underline">ເບິ່ງທັງໝົດ</Link></div><div className="mt-4 space-y-2">{(result.data ?? []).map((goal) => <div key={goal.id} className="flex flex-col gap-1 rounded-lg border border-slate-200 p-3 sm:flex-row sm:justify-between"><span className="break-words">{goal.name}</span><span className="break-words">{formatMoney(Number(goal.target_amount))} {goal.currency}{goal.target_date ? ` · ${goal.target_date}` : ""}</span></div>)}{!result.data?.length && <p className="text-slate-500">ຍັງບໍ່ມີເປົ້າໝາຍ</p>}</div></section>;
+      return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><div className="flex justify-between"><h2 className="text-lg font-semibold">ເປົ້າໝາຍການອອມ</h2><Link href="/goals" prefetch={false} className="text-sm font-semibold text-emerald-700 underline">ເບິ່ງທັງໝົດ</Link></div><div className="mt-4 space-y-2">{(result.data ?? []).map((goal) => <div key={goal.id} className="flex flex-col gap-1 rounded-lg border border-slate-200 p-3 sm:flex-row sm:justify-between"><span className="break-words">{goal.name}</span><span className="break-words">{formatMoney(Number(goal.target_amount))} {goal.currency}{goal.target_date ? ` · ${goal.target_date}` : ""}</span></div>)}{!result.data?.length && <p className="text-slate-500">ຍັງບໍ່ມີເປົ້າໝາຍ</p>}</div></section>;
     });
   } catch {
     return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><h2 className="text-lg font-semibold">ເປົ້າໝາຍການອອມ</h2><SectionError /></section>;
@@ -189,7 +189,7 @@ export async function RecurringSummarySection({ userId }: { userId: string }) {
       const recurringItems = result.data ?? [];
       const today = new Date().toISOString().slice(0, 10);
       const overdueCount = recurringItems.filter((item) => item.next_due_date <= today).length;
-      return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">ລາຍການປະຈຳ</h2><p className={overdueCount ? "mt-1 text-sm font-semibold text-red-700" : "mt-1 text-sm text-slate-500"}>ຄົບກຳນົດແລ້ວ {overdueCount} ລາຍການ</p></div><Link href="/recurring" className="text-sm font-semibold text-emerald-700 underline">ລາຍການປະຈຳ</Link></div><div className="mt-4 space-y-2">{recurringItems.map((item) => <div key={item.id} className="flex justify-between gap-4 rounded-lg border border-slate-200 p-3"><span>{item.name}</span><span className="text-right text-sm text-slate-600">{item.next_due_date} · {formatMoney(Number(item.amount))} {item.currency}</span></div>)}{!recurringItems.length && <p className="text-slate-500">ຍັງບໍ່ມີລາຍການປະຈຳ</p>}</div></section>;
+      return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">ລາຍການປະຈຳ</h2><p className={overdueCount ? "mt-1 text-sm font-semibold text-red-700" : "mt-1 text-sm text-slate-500"}>ຄົບກຳນົດແລ້ວ {overdueCount} ລາຍການ</p></div><Link href="/recurring" prefetch={false} className="text-sm font-semibold text-emerald-700 underline">ລາຍການປະຈຳ</Link></div><div className="mt-4 space-y-2">{recurringItems.map((item) => <div key={item.id} className="flex justify-between gap-4 rounded-lg border border-slate-200 p-3"><span>{item.name}</span><span className="text-right text-sm text-slate-600">{item.next_due_date} · {formatMoney(Number(item.amount))} {item.currency}</span></div>)}{!recurringItems.length && <p className="text-slate-500">ຍັງບໍ່ມີລາຍການປະຈຳ</p>}</div></section>;
     });
   } catch {
     return <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><h2 className="text-lg font-semibold">ລາຍການປະຈຳ</h2><SectionError /></section>;
