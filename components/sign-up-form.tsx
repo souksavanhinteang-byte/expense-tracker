@@ -34,13 +34,13 @@ export function SignUpForm({
     setError(null);
 
     if (password !== repeatPassword) {
-      setError("Passwords do not match");
+      setError("ລະຫັດຜ່ານບໍ່ກົງກັນ");
       setIsLoading(false);
       return;
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -48,9 +48,20 @@ export function SignUpForm({
         },
       });
       if (error) throw error;
-      router.push("/auth/sign-up-success");
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+
+      if (data.session) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      if (data.user) {
+        router.push("/auth/sign-up-success");
+        return;
+      }
+
+      setError("ບໍ່ສາມາດສະໝັກບັນຊີໄດ້ ກະລຸນາລອງໃໝ່");
+    } catch {
+      setError("ບໍ່ສາມາດສະໝັກບັນຊີໄດ້ ກະລຸນາລອງໃໝ່");
     } finally {
       setIsLoading(false);
     }
