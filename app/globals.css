@@ -64,12 +64,18 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-phetsarath), "Phetsarath OT", "Noto Sans Lao", sans-serif;
+    font-family: var(--font-phetsarath), "Noto Sans Lao", sans-serif;
   }
   button,
   input,
   select,
   textarea {
     font: inherit;
+  }
+}
+
+@layer components {
+  .dashboard-nav-link {
+    @apply flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100;
   }
 }

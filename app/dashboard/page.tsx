@@ -1,15 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BudgetSummary } from "@/components/budget-summary";
-import { CategoryExpenseSummary } from "@/components/category-expense-summary";
-import { MonthlyIncomeExpenseChart } from "@/components/monthly-income-expense-chart";
-import { calculateAccountBalances, parseWholeAmount } from "@/lib/account-balances";
+import { Suspense } from "react";
 import {
-  createCategoryExpenseReport,
-  createMonthlyIncomeExpenseReport,
-} from "@/lib/dashboard-reports";
-import { formatMoney } from "@/lib/format-money";
-import { createBudgetProgressReport } from "@/lib/budget-reports";
+  DashboardDetails,
+  DashboardDetailsFallback,
+  DashboardSummary,
+  DashboardSummaryFallback,
+} from "./dashboard-content";
 import { createClient } from "@/lib/supabase/server";
 
 type DashboardPageProps = {
@@ -23,40 +20,25 @@ function getSearchParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function getMonthRange(year: number, month: number) {
-  const start = `${year}-${String(month).padStart(2, "0")}-01`;
-  const nextYear = month === 12 ? year + 1 : year;
-  const nextMonth = month === 12 ? 1 : month + 1;
+function getSelectedPeriod(searchParams: Awaited<DashboardPageProps["searchParams"]>) {
+  const now = new Date();
+  const selectedMonthValue = Number(getSearchParam(searchParams.month));
+  const selectedYearValue = Number(getSearchParam(searchParams.year));
 
   return {
-    start,
-    end: `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`,
+    month:
+      Number.isInteger(selectedMonthValue) && selectedMonthValue >= 1 && selectedMonthValue <= 12
+        ? selectedMonthValue
+        : now.getUTCMonth() + 1,
+    year:
+      Number.isInteger(selectedYearValue) && selectedYearValue >= 1 && selectedYearValue <= 9999
+        ? selectedYearValue
+        : now.getUTCFullYear(),
   };
 }
 
-function getLatestSixMonths(now: Date) {
-  const months = [];
-  const formatter = new Intl.DateTimeFormat("lo-LA", {
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
-  for (let offset = 5; offset >= 0; offset -= 1) {
-    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
-    months.push({
-      key: date.toISOString().slice(0, 7),
-      label: formatter.format(date),
-    });
-  }
-
-  return months;
-}
-
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const params = await searchParams;
-  const supabase = await createClient();
-
+  const [params, supabase] = await Promise.all([searchParams, createClient()]);
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -65,508 +47,43 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     redirect("/auth/login");
   }
 
-  const now = new Date();
-  const currentYear = now.getUTCFullYear();
-  const currentMonth = now.getUTCMonth() + 1;
-  const selectedMonthValue = Number(getSearchParam(params.month));
-  const selectedYearValue = Number(getSearchParam(params.year));
-  const selectedMonth = Number.isInteger(selectedMonthValue) && selectedMonthValue >= 1 && selectedMonthValue <= 12
-    ? selectedMonthValue
-    : currentMonth;
-  const selectedYear = Number.isInteger(selectedYearValue) && selectedYearValue >= 1 && selectedYearValue <= 9999
-    ? selectedYearValue
-    : currentYear;
-  const currentMonthRange = getMonthRange(currentYear, currentMonth);
-  const selectedMonthRange = getMonthRange(selectedYear, selectedMonth);
-  const latestSixMonths = getLatestSixMonths(now);
-  const chartRange = {
-    start: `${latestSixMonths[0].key}-01`,
-    end: currentMonthRange.end,
-  };
-
-  const [
-    profileResult,
-    accountsResult,
-    categoriesResult,
-    transactionsResult,
-    balanceTransactionsResult,
-    chartTransactionsResult,
-    categoryExpenseResult,
-    budgetsResult,
-    recurringResult,
-    goalsResult,
-  ] =
-    await Promise.all([
-      supabase
-        .from("profiles")
-        .select("full_name, default_currency, timezone")
-        .eq("id", user.id)
-        .single(),
-
-      supabase
-        .from("accounts")
-        .select("id, name, account_type, currency, initial_balance, is_active")
-        .eq("user_id", user.id)
-        .order("created_at"),
-
-      supabase
-        .from("categories")
-        .select("id, name, type")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("name"),
-
-      supabase
-        .from("transactions")
-        .select(
-          "id, transaction_date, type, amount, description, currency, created_at",
-        )
-        .eq("user_id", user.id)
-        .gte("transaction_date", currentMonthRange.start)
-        .lt("transaction_date", currentMonthRange.end)
-        .order("transaction_date", { ascending: false })
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("transactions")
-        .select("type, amount, account_id, destination_account_id, currency")
-        .eq("user_id", user.id),
-
-      supabase
-        .from("transactions")
-        .select("transaction_date, type, amount, currency")
-        .eq("user_id", user.id)
-        .gte("transaction_date", chartRange.start)
-        .lt("transaction_date", chartRange.end),
-
-      supabase
-        .from("transactions")
-        .select("amount, currency, category_id, categories ( name )")
-        .eq("user_id", user.id)
-        .eq("type", "expense")
-        .gte("transaction_date", selectedMonthRange.start)
-        .lt("transaction_date", selectedMonthRange.end),
-
-      supabase
-        .from("budgets")
-        .select("id, category_id, amount, currency, categories ( name, is_active )")
-        .eq("user_id", user.id)
-        .eq("month", selectedMonth)
-        .eq("year", selectedYear)
-        .order("currency"),
-
-      supabase
-        .from("recurring_transactions")
-        .select("id, name, next_due_date, amount, currency, is_active")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("next_due_date")
-        .limit(5),
-
-      supabase.from("savings_goals").select("id, name, target_amount, currency, target_date, is_active").eq("user_id", user.id).eq("is_active", true).order("target_date").limit(5),
-    ]);
-
-  if (profileResult.error) {
-    throw new Error(profileResult.error.message);
-  }
-
-  if (accountsResult.error) {
-    throw new Error(accountsResult.error.message);
-  }
-
-  if (categoriesResult.error) {
-    throw new Error(categoriesResult.error.message);
-  }
-
-  if (transactionsResult.error) {
-    throw new Error(transactionsResult.error.message);
-  }
-
-  if (balanceTransactionsResult.error) {
-    throw new Error(balanceTransactionsResult.error.message);
-  }
-
-  if (chartTransactionsResult.error) {
-    throw new Error(chartTransactionsResult.error.message);
-  }
-
-  if (categoryExpenseResult.error) {
-    throw new Error(categoryExpenseResult.error.message);
-  }
-
-  if (budgetsResult.error) {
-    throw new Error(budgetsResult.error.message);
-  }
-
-  if (recurringResult.error) {
-    throw new Error(recurringResult.error.message);
-  }
-  if (goalsResult.error) throw new Error(goalsResult.error.message);
-
-  const profile = profileResult.data;
-  const accounts = accountsResult.data ?? [];
-  const categories = categoriesResult.data ?? [];
-  const transactions = transactionsResult.data ?? [];
-  const currentTransactions = transactions.map((transaction) => ({
-    ...transaction,
-    amount: parseWholeAmount(transaction.amount, "ຈຳນວນເງິນຂອງລາຍການ"),
-  }));
-  const { accounts: accountBalances, totalsByCurrency } = calculateAccountBalances(
-    accounts,
-    balanceTransactionsResult.data ?? [],
-  );
-  const currentMonthGroups = createMonthlyIncomeExpenseReport(
-    currentTransactions,
-    [{ key: currentMonthRange.start.slice(0, 7), label: "" }],
-    accountBalances.map((account) => account.currency),
-  );
-  const chartGroups = createMonthlyIncomeExpenseReport(
-    chartTransactionsResult.data ?? [],
-    latestSixMonths,
-    accountBalances.map((account) => account.currency),
-  );
-  const categoryExpenseTransactions = (categoryExpenseResult.data ?? []).map((transaction) => {
-    const category = Array.isArray(transaction.categories)
-      ? transaction.categories[0]
-      : transaction.categories;
-
-    return {
-      amount: transaction.amount,
-      currency: transaction.currency,
-      category_id: transaction.category_id,
-      categoryName: category?.name ?? "ບໍ່ມີໝວດໝູ່",
-    };
-  });
-  const categoryExpenseGroups = createCategoryExpenseReport(categoryExpenseTransactions);
-  const budgetProgress = createBudgetProgressReport(
-    (budgetsResult.data ?? []).map((budget) => {
-      const category = Array.isArray(budget.categories)
-        ? budget.categories[0]
-        : budget.categories;
-
-      return {
-        ...budget,
-        categoryName: category?.name ?? "ບໍ່ພົບໝວດໝູ່",
-        categoryIsActive: category?.is_active ?? false,
-      };
-    }),
-    categoryExpenseResult.data ?? [],
-  );
-  const recurringItems = recurringResult.data ?? [];
-  const activeGoals = goalsResult.data ?? [];
-  const overdueRecurringCount = recurringItems.filter((item) => item.next_due_date <= new Date().toISOString().slice(0, 10)).length;
+  const selectedPeriod = getSelectedPeriod(params);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 p-4 text-slate-900 sm:p-6">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold leading-tight sm:text-3xl">ລະບົບບັນທຶກລາຍຮັບ–ລາຍຈ່າຍ</h1>
-
-            <p className="mt-2 text-slate-600">
-              ສະກຸນເງິນຫຼັກ: {profile?.default_currency ?? "LAK"}
-            </p>
+            <h1 className="text-2xl font-bold leading-tight sm:text-3xl">
+              ລະບົບບັນທຶກລາຍຮັບ–ລາຍຈ່າຍ
+            </h1>
+            <p className="mt-2 text-slate-600">ສະຫຼຸບລາຍຮັບ–ລາຍຈ່າຍຂອງທ່ານ</p>
           </div>
 
-          <div className="grid w-full grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
-            <Link
-              href="/accounts"
-              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
-            >
-              ຈັດການບັນຊີ
-            </Link>
-
-            <Link
-              href="/categories"
-              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
-            >
-              ຈັດການໝວດໝູ່
-            </Link>
-
-            <Link
-              href="/budgets"
-              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
-            >
-              ຈັດການງົບປະມານ
-            </Link>
-
-            <Link
-              href="/recurring"
-              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
-            >
-              ລາຍການປະຈຳ
-            </Link>
-            <Link href="/goals" className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100">ເປົ້າໝາຍການອອມ</Link>
-
-            <Link
-              href="/transactions"
-              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
-            >
-              ເບິ່ງລາຍການ
-            </Link>
-
-            <Link
-              href="/transactions/new"
-              className="flex min-h-16 items-center justify-center rounded-xl bg-emerald-600 px-2 py-2 text-center text-sm font-semibold leading-tight break-words text-white hover:bg-emerald-700"
-            >
-              + ເພີ່ມລາຍການ
-            </Link>
-
-            <Link
-              href="/transfers/new"
-              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
-            >
-              ໂອນເງິນ
-            </Link>
-
-            <Link
-              href="/export"
-              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
-            >
-              ສຳຮອງຂໍ້ມູນ
-            </Link>
-
-            <Link
-              href="/import"
-              className="flex min-h-16 items-center justify-center rounded-xl border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold leading-tight break-words hover:bg-slate-100"
-            >
-              ນຳເຂົ້າຂໍ້ມູນ
-            </Link>
-          </div>
+          <nav
+            aria-label="ເມນູຫຼັກ"
+            className="grid w-full grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5"
+          >
+            <Link href="/accounts" className="dashboard-nav-link">ຈັດການບັນຊີ</Link>
+            <Link href="/categories" className="dashboard-nav-link">ຈັດການໝວດໝູ່</Link>
+            <Link href="/budgets" className="dashboard-nav-link">ຈັດການງົບປະມານ</Link>
+            <Link href="/recurring" className="dashboard-nav-link">ລາຍການປະຈຳ</Link>
+            <Link href="/goals" className="dashboard-nav-link">ເປົ້າໝາຍການອອມ</Link>
+            <Link href="/transactions" className="dashboard-nav-link">ເບິ່ງລາຍການ</Link>
+            <Link href="/transactions/new" className="dashboard-nav-link bg-emerald-600 text-white hover:bg-emerald-700">+ ເພີ່ມລາຍການ</Link>
+            <Link href="/transfers/new" className="dashboard-nav-link">ໂອນເງິນ</Link>
+            <Link href="/export" className="dashboard-nav-link">ສຳຮອງຂໍ້ມູນ</Link>
+            <Link href="/import" className="dashboard-nav-link">ນຳເຂົ້າຂໍ້ມູນ</Link>
+          </nav>
         </div>
 
-        <div className="mt-5 grid gap-3 md:mt-8 md:grid-cols-3 md:gap-4">
-          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-            <p className="text-sm text-slate-500">ລາຍຮັບເດືອນນີ້</p>
+        <Suspense fallback={<DashboardSummaryFallback />}>
+          <DashboardSummary userId={user.id} />
+        </Suspense>
 
-            <div className="mt-2 space-y-1 text-2xl font-bold text-emerald-600">
-              {currentMonthGroups.map((group) => (
-                <p key={group.currency}>{formatMoney(group.months[0].income)} {group.currency}</p>
-              ))}
-              {!currentMonthGroups.length && <p>0 {profile?.default_currency ?? "LAK"}</p>}
-            </div>
-          </section>
-
-          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-            <p className="text-sm text-slate-500">ລາຍຈ່າຍເດືອນນີ້</p>
-
-            <div className="mt-2 space-y-1 text-2xl font-bold text-red-600">
-              {currentMonthGroups.map((group) => (
-                <p key={group.currency}>{formatMoney(group.months[0].expense)} {group.currency}</p>
-              ))}
-              {!currentMonthGroups.length && <p>0 {profile?.default_currency ?? "LAK"}</p>}
-            </div>
-          </section>
-
-          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-            <p className="text-sm text-slate-500">ເງິນຄົງເຫຼືອ</p>
-
-            <div className="mt-2 space-y-1 text-2xl font-bold">
-              {currentMonthGroups.map((group) => {
-                const netBalance = group.months[0].income - group.months[0].expense;
-
-                return (
-                  <p key={group.currency} className={netBalance >= 0 ? "text-slate-900" : "text-red-600"}>
-                    {formatMoney(netBalance)} {group.currency}
-                  </p>
-                );
-              })}
-              {!currentMonthGroups.length && <p>0 {profile?.default_currency ?? "LAK"}</p>}
-            </div>
-          </section>
-        </div>
-
-        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">ງົບປະມານ</h2>
-              <p className="mt-1 text-sm text-slate-500">ເດືອນ {selectedMonth} ປີ {selectedYear}</p>
-            </div>
-            <Link href={`/budgets?month=${selectedMonth}&year=${selectedYear}`} className="text-sm font-semibold text-emerald-700 underline">
-              ຈັດການງົບປະມານ
-            </Link>
-          </div>
-          <BudgetSummary budgets={budgetProgress} />
-        </section>
-
-        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5"><div className="flex justify-between"><h2 className="text-lg font-semibold">ເປົ້າໝາຍການອອມ</h2><Link href="/goals" className="text-sm font-semibold text-emerald-700 underline">ເບິ່ງທັງໝົດ</Link></div><div className="mt-4 space-y-2">{activeGoals.map((goal)=><div key={goal.id} className="flex flex-col gap-1 rounded-lg border border-slate-200 p-3 sm:flex-row sm:justify-between"><span className="break-words">{goal.name}</span><span className="break-words">{formatMoney(Number(goal.target_amount))} {goal.currency}{goal.target_date?` · ${goal.target_date}`:""}</span></div>)}{!activeGoals.length&&<p className="text-slate-500">ຍັງບໍ່ມີເປົ້າໝາຍ</p>}</div></section>
-
-        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">ລາຍການປະຈຳ</h2>
-              <p className={overdueRecurringCount ? "mt-1 text-sm font-semibold text-red-700" : "mt-1 text-sm text-slate-500"}>
-                ຄົບກຳນົດແລ້ວ {overdueRecurringCount} ລາຍການ
-              </p>
-            </div>
-            <Link href="/recurring" className="text-sm font-semibold text-emerald-700 underline">ລາຍການປະຈຳ</Link>
-          </div>
-          <div className="mt-4 space-y-2">
-            {recurringItems.map((item) => (
-              <div key={item.id} className="flex justify-between gap-4 rounded-lg border border-slate-200 p-3">
-                <span>{item.name}</span>
-                <span className="text-right text-sm text-slate-600">{item.next_due_date} · {formatMoney(Number(item.amount))} {item.currency}</span>
-              </div>
-            ))}
-            {!recurringItems.length && <p className="text-slate-500">ຍັງບໍ່ມີລາຍການປະຈຳ</p>}
-          </div>
-        </section>
-
-        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="text-lg font-semibold">ລາຍຮັບ–ລາຍຈ່າຍ 6 ເດືອນຫຼ້າສຸດ</h2>
-          <MonthlyIncomeExpenseChart groups={chartGroups} />
-        </section>
-
-        <div className="mt-8 grid gap-6 md:grid-cols-2">
-          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-lg font-semibold">ຍອດເງິນໃນແຕ່ລະບັນຊີ</h2>
-
-            <div className="mt-4 space-y-3">
-              {accountBalances.map((account) => (
-                <div
-                  key={account.id}
-                  className="flex justify-between rounded-lg border border-slate-200 p-3"
-                >
-                  <div>
-                    <p>{account.name}</p>
-                    {!account.is_active && (
-                      <p className="mt-1 text-sm text-slate-500">ປິດໃຊ້ງານ</p>
-                    )}
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-sm text-slate-500">ຍອດຄົງເຫຼືອ</p>
-                    <p
-                      className={`font-semibold ${
-                        account.balance > 0
-                          ? "text-emerald-600"
-                          : account.balance < 0
-                            ? "text-red-600"
-                            : "text-slate-700"
-                      }`}
-                    >
-                      {formatMoney(account.balance)} {account.currency}
-                    </p>
-                  </div>
-                </div>
-              ))}
-
-              {!accountBalances.length && (
-                <p className="text-slate-500">ຍັງບໍ່ມີບັນຊີ</p>
-              )}
-            </div>
-
-            {!!totalsByCurrency.length && (
-              <div className="mt-4 space-y-2 border-t border-slate-200 pt-4">
-                {totalsByCurrency.map((total) => (
-                  <div key={total.currency} className="flex justify-between font-semibold">
-                    <span>ລວມທັງໝົດ</span>
-                    <span
-                      className={
-                        total.total > 0
-                          ? "text-emerald-600"
-                          : total.total < 0
-                            ? "text-red-600"
-                            : "text-slate-700"
-                      }
-                    >
-                      {formatMoney(total.total)} {total.currency}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-lg font-semibold">ໝວດໝູ່</h2>
-
-            <p className="mt-4 text-3xl font-bold">{categories.length}</p>
-
-            <p className="text-sm text-slate-500">ຈຳນວນໝວດລາຍຮັບ–ລາຍຈ່າຍ</p>
-          </section>
-        </div>
-
-        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold">ລາຍຈ່າຍຕາມໝວດໝູ່</h2>
-
-            <form action="/dashboard" className="flex gap-2">
-              <select
-                name="month"
-                defaultValue={selectedMonth}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 [color-scheme:light]"
-              >
-                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
-                  <option key={month} value={month}>{month}</option>
-                ))}
-              </select>
-              <input
-                name="year"
-                type="number"
-                min="1"
-                max="9999"
-                defaultValue={selectedYear}
-                className="w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
-              />
-              <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">
-                ເບິ່ງ
-              </button>
-            </form>
-          </div>
-
-          <CategoryExpenseSummary groups={categoryExpenseGroups} />
-        </section>
-
-        <section className="mt-8 rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">ລາຍການເດືອນນີ້</h2>
-
-            <span className="text-sm text-slate-500">
-              {transactions.length} ລາຍການ
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {currentTransactions.slice(0, 10).map((transaction) => {
-              const isTransfer = transaction.type === "transfer";
-
-              return (
-                <div
-                  key={transaction.id}
-                  className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-4"
-                >
-                  <div>
-                    <p className="font-medium">{transaction.description}</p>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      {transaction.transaction_date}
-                    </p>
-                  </div>
-
-                  <p
-                    className={`font-semibold ${
-                      isTransfer
-                        ? "text-blue-600"
-                        : transaction.type === "income"
-                          ? "text-emerald-600"
-                          : "text-red-600"
-                    }`}
-                  >
-                    {!isTransfer && (transaction.type === "income" ? "+" : "-")}
-                    {formatMoney(transaction.amount)} {transaction.currency}
-                  </p>
-                </div>
-              );
-            })}
-
-            {!currentTransactions.length && (
-              <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-slate-500">
-                ຍັງບໍ່ມີລາຍການໃນເດືອນນີ້
-              </div>
-            )}
-          </div>
-        </section>
+        <Suspense fallback={<DashboardDetailsFallback />}>
+          <DashboardDetails userId={user.id} selectedPeriod={selectedPeriod} />
+        </Suspense>
       </div>
     </main>
   );
