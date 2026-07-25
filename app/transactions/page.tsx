@@ -15,8 +15,12 @@ type TransactionsPageProps = {
     month?: string | string[];
     year?: string | string[];
     category?: string | string[];
+    account?: string | string[];
+    page?: string | string[];
   }>;
 };
+
+const pageSize = 25;
 
 function getSearchParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -24,6 +28,43 @@ function getSearchParam(value: string | string[] | undefined) {
 
 function escapeFilterValue(value: string) {
   return value.replace(/[\\%_]/g, "\\\\$&").replace(/[(),]/g, "");
+}
+
+function getPageNumber(value: string | string[] | undefined) {
+  const page = Number(getSearchParam(value));
+
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function getTransactionsPageHref({
+  keyword,
+  type,
+  month,
+  year,
+  categoryId,
+  accountId,
+  page,
+}: {
+  keyword: string;
+  type: string;
+  month?: number;
+  year?: number;
+  categoryId: string;
+  accountId: string;
+  page: number;
+}) {
+  const searchParams = new URLSearchParams();
+
+  if (keyword) searchParams.set("q", keyword);
+  if (type) searchParams.set("type", type);
+  if (month) searchParams.set("month", String(month));
+  if (year) searchParams.set("year", String(year));
+  if (categoryId) searchParams.set("category", categoryId);
+  if (accountId) searchParams.set("account", accountId);
+  if (page > 1) searchParams.set("page", String(page));
+
+  const query = searchParams.toString();
+  return query ? `/transactions?${query}` : "/transactions";
 }
 
 const filterControlClassName =
@@ -79,6 +120,8 @@ export default async function TransactionsPage({
     ? selectedYear
     : undefined;
   const categoryId = getSearchParam(params.category) ?? "";
+  const accountId = getSearchParam(params.account) ?? "";
+  const requestedPage = getPageNumber(params.page);
   const supabase = await createClient();
 
   const {
@@ -87,6 +130,41 @@ export default async function TransactionsPage({
 
   if (!user) {
     redirect("/auth/login");
+  }
+
+  let monthYears: number[] = [];
+
+  if (month && !year) {
+    const [earliestTransactionResult, latestTransactionResult] = await Promise.all([
+      supabase
+        .from("transactions")
+        .select("transaction_date")
+        .eq("user_id", user.id)
+        .order("transaction_date")
+        .limit(1),
+      supabase
+        .from("transactions")
+        .select("transaction_date")
+        .eq("user_id", user.id)
+        .order("transaction_date", { ascending: false })
+        .limit(1),
+    ]);
+
+    if (earliestTransactionResult.error || latestTransactionResult.error) {
+      throw new Error(
+        earliestTransactionResult.error?.message ?? latestTransactionResult.error?.message,
+      );
+    }
+
+    const earliestYear = Number(earliestTransactionResult.data?.[0]?.transaction_date.slice(0, 4));
+    const latestYear = Number(latestTransactionResult.data?.[0]?.transaction_date.slice(0, 4));
+
+    if (Number.isInteger(earliestYear) && Number.isInteger(latestYear)) {
+      monthYears = Array.from(
+        { length: latestYear - earliestYear + 1 },
+        (_, index) => earliestYear + index,
+      );
+    }
   }
 
   let transactionsQuery = supabase
@@ -109,7 +187,7 @@ export default async function TransactionsPage({
       destination_account:accounts!transactions_destination_account_id_fkey (
         name
       )
-    `)
+    `, { count: "exact" })
     .eq("user_id", user.id);
 
   if (keyword) {
@@ -127,6 +205,10 @@ export default async function TransactionsPage({
     transactionsQuery = transactionsQuery.eq("category_id", categoryId);
   }
 
+  if (accountId) {
+    transactionsQuery = transactionsQuery.eq("account_id", accountId);
+  }
+
   if (year && month) {
     const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
     const nextMonthYear = month === 12 ? year + 1 : year;
@@ -140,33 +222,69 @@ export default async function TransactionsPage({
     transactionsQuery = transactionsQuery
       .gte("transaction_date", `${year}-01-01`)
       .lt("transaction_date", `${year + 1}-01-01`);
+  } else if (month) {
+    const monthValue = String(month).padStart(2, "0");
+    const monthRanges = monthYears.map((monthYear) => {
+      const monthStart = `${monthYear}-${monthValue}-01`;
+      const nextMonthYear = month === 12 ? monthYear + 1 : monthYear;
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const nextMonthStart = `${nextMonthYear}-${String(nextMonth).padStart(2, "0")}-01`;
+
+      return `and(transaction_date.gte.${monthStart},transaction_date.lt.${nextMonthStart})`;
+    });
+
+    if (monthRanges.length) {
+      transactionsQuery = transactionsQuery.or(monthRanges.join(","));
+    }
   }
 
-  const { data: transactionsData, error } = await transactionsQuery
+  const paginationHref = (page: number) => getTransactionsPageHref({
+    keyword,
+    type,
+    month,
+    year,
+    categoryId,
+    accountId,
+    page,
+  });
+
+  const { data: transactionsData, count, error } = await transactionsQuery
     .order("transaction_date", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range((requestedPage - 1) * pageSize, requestedPage * pageSize - 1);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  const transactions = (transactionsData ?? []).filter((transaction) => {
-    if (!month || year) {
-      return true;
-    }
+  const totalTransactions = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalTransactions / pageSize));
 
-    return Number(transaction.transaction_date.slice(5, 7)) === month;
-  });
-
-  const { data: categories, error: categoriesError } = await supabase
-    .from("categories")
-    .select("id, name")
-    .eq("user_id", user.id)
-    .order("name");
-
-  if (categoriesError) {
-    throw new Error(categoriesError.message);
+  if (requestedPage > totalPages) {
+    redirect(paginationHref(totalPages));
   }
+
+  const transactions = transactionsData ?? [];
+
+  const [categoriesResult, accountsResult] = await Promise.all([
+    supabase
+      .from("categories")
+      .select("id, name")
+      .eq("user_id", user.id)
+      .order("name"),
+    supabase
+      .from("accounts")
+      .select("id, name")
+      .eq("user_id", user.id)
+      .order("name"),
+  ]);
+
+  if (categoriesResult.error || accountsResult.error) {
+    throw new Error(categoriesResult.error?.message ?? accountsResult.error?.message);
+  }
+
+  const categories = categoriesResult.data;
+  const accounts = accountsResult.data;
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
@@ -202,7 +320,7 @@ export default async function TransactionsPage({
         <section className="mt-8 overflow-hidden rounded-xl bg-white shadow-sm">
           <form
             action="/transactions"
-            className="grid gap-4 border-b border-slate-200 p-5 sm:grid-cols-2 lg:grid-cols-6"
+            className="grid gap-4 border-b border-slate-200 p-5 sm:grid-cols-2 lg:grid-cols-7"
           >
             <label className="space-y-1 lg:col-span-2">
               <span className="block text-sm font-medium">ຄົ້ນຫາ</span>
@@ -276,7 +394,23 @@ export default async function TransactionsPage({
               </select>
             </label>
 
-            <div className="flex items-end gap-3 lg:col-span-6">
+            <label className="space-y-1">
+              <span className="block text-sm font-medium">ບັນຊີ</span>
+              <select
+                name="account"
+                defaultValue={accountId}
+                className={filterControlClassName}
+              >
+                <option value="">ທັງໝົດ</option>
+                {accounts?.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex items-end gap-3 lg:col-span-7">
               <button
                 type="submit"
                 className="rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700"
@@ -293,10 +427,42 @@ export default async function TransactionsPage({
             </div>
           </form>
 
-          <div className="border-b border-slate-200 p-5">
+          <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="font-semibold">
-              ທັງໝົດ {transactions.length} ລາຍການ
+              ຈຳນວນທັງໝົດ {totalTransactions} ລາຍການ
             </p>
+
+            <div className="flex items-center gap-3">
+              {requestedPage > 1 ? (
+                <Link
+                  href={paginationHref(requestedPage - 1)}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold hover:bg-slate-100"
+                >
+                  ໜ້າກ່ອນ
+                </Link>
+              ) : (
+                <span className="rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 font-semibold text-slate-400">
+                  ໜ້າກ່ອນ
+                </span>
+              )}
+
+              <span className="whitespace-nowrap text-sm font-medium">
+                ໜ້າ {requestedPage} ຈາກ {totalPages}
+              </span>
+
+              {requestedPage < totalPages ? (
+                <Link
+                  href={paginationHref(requestedPage + 1)}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold hover:bg-slate-100"
+                >
+                  ໜ້າຕໍ່ໄປ
+                </Link>
+              ) : (
+                <span className="rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 font-semibold text-slate-400">
+                  ໜ້າຕໍ່ໄປ
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
